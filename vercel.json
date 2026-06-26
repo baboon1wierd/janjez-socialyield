@@ -1,0 +1,7 @@
+{
+  "version": 2,
+  "public": true,
+  "routes": [
+    { "src": "/index.html", "dest": "/index.html" }
+  ]
+}
