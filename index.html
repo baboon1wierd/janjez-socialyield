@@ -16,7 +16,7 @@
         <div class="mark"><i class="fas fa-arrow-trend-up"></i></div>
         <div class="wordmark">Janjez<span>·</span>Socio</div>
       </a>
-      <div class="nav-links">
+      <div class="nav-links" id="auth-nav">
         <a href="#">Image</a>
         <a href="#">Video</a>
         <a href="#">Social Creative</a>
@@ -25,6 +25,10 @@
         <a href="#">Pricing</a>
         <a class="btn-outline" href="#">Log in</a>
         <a class="btn-primary" href="#" style="padding:8px 24px; font-size:14px;">Sign up</a>
+      </div>
+      <div class="nav-links" id="user-menu">
+        <span style="font-weight:600;font-size:14px;"><i class="fas fa-user-circle"></i> <span id="user-username">User</span></span>
+        <button id="logout-btn" class="btn-logout">Logout</button>
       </div>
     </nav>
     <div class="hero">
@@ -40,7 +44,7 @@
         <span><i class="fab fa-x-twitter"></i> X</span>
       </div>
       <div class="hero-actions">
-        <a class="btn-primary" href="#"><i class="fas fa-rocket"></i> Start free trial</a>
+        <a class="btn-primary" href="#" id="hero-primary"><i class="fas fa-rocket"></i> Start free trial</a>
         <a class="btn-light" href="#"><i class="fas fa-play"></i> Live demo</a>
       </div>
     </div>
@@ -97,9 +101,7 @@
     </div>
     <div class="quote-block">
       <p><i class="fas fa-quote-left"></i> From brief to complete post in minutes. Janjez‑Socio compresses the production cycle so you can stay consistent across every platform.</p>
-      <div style="display: flex; gap: 8px;">
-        <span style="background: white; border-radius: 40px; padding: 8px 22px; font-weight:600; box-shadow: 0 4px 10px rgba(0,0,0,0.02);">✨ Start for free</span>
-      </div>
+      <span class="quote-cta" style="background: white; border-radius: 40px; padding: 8px 22px; font-weight:600; box-shadow: 0 4px 10px rgba(0,0,0,0.02); cursor:pointer;">✨ Start for free</span>
     </div>
     <div style="margin: 50px 0 20px;">
       <h2 style="font-size: 28px; font-weight:700;">Frequently Asked Questions</h2>
@@ -130,7 +132,7 @@
         </div>
       </div>
       <div style="text-align: center; margin: 30px 0 20px;">
-        <a class="btn-primary" href="#"><i class="fas fa-magic"></i> Start creating for free</a>
+        <button class="btn-primary" id="faq-cta" style="border:none;cursor:pointer;"><i class="fas fa-magic"></i> Start creating for free</button>
       </div>
     </div>
     <footer class="footer">
@@ -179,6 +181,10 @@
       </div>
     </footer>
   </div>
+  <script>
+    window.JANJEZ_API_URL = '';
+  </script>
+  <script src="assets/js/main.js"></script>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { font-family: 'Inter', sans-serif; background: #faf8f7; color: #1a1a1a; line-height: 1.5; }
