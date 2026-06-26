@@ -1,6 +1,6 @@
 <?php
 // ============================================================
-// Janjez-Socio - Core Backend Setup (PHP + MySQL)
+// Janjez-Socio - Core Backend Setup (PHP + SQLite)
 // ============================================================
 // This file contains the complete backend structure for:
 // - User authentication (login, signup, session)
@@ -18,16 +18,14 @@ date_default_timezone_set('UTC');
 // ============================================================
 // 1. DATABASE CONFIGURATION
 // ============================================================
-define('DB_HOST', 'localhost');
-define('DB_NAME', 'janjez_socio');
-define('DB_USER', 'root');
-define('DB_PASS', '');
+define('DB_PATH', __DIR__ . '/database.sqlite');
 
 try {
-    $pdo = new PDO("mysql:host=" . DB_HOST . ";dbname=" . DB_NAME . ";charset=utf8mb4", DB_USER, DB_PASS);
+    $pdo = new PDO('sqlite:' . DB_PATH);
     $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
     $pdo->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
     $pdo->setAttribute(PDO::ATTR_EMULATE_PREPARES, false);
+    $pdo->exec('PRAGMA foreign_keys = ON');
 } catch (PDOException $e) {
     http_response_code(500);
     header('Content-Type: application/json');
@@ -39,9 +37,9 @@ try {
 // 2. DATABASE SCHEMA (auto-install if tables missing)
 // ============================================================
 function installSchema($pdo) {
-    $tables = [
-        "users" => "CREATE TABLE IF NOT EXISTS users (
-            id INT AUTO_INCREMENT PRIMARY KEY,
+    $statements = [
+        "CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
             email VARCHAR(255) UNIQUE NOT NULL,
             username VARCHAR(100) UNIQUE NOT NULL,
             password_hash VARCHAR(255) NOT NULL,
@@ -50,83 +48,83 @@ function installSchema($pdo) {
             bio TEXT,
             company VARCHAR(255),
             website VARCHAR(255),
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-            last_login TIMESTAMP NULL,
-            is_active BOOLEAN DEFAULT TRUE,
-            role ENUM('user', 'admin') DEFAULT 'user'
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            last_login DATETIME,
+            is_active INTEGER DEFAULT 1,
+            role TEXT DEFAULT 'user' CHECK(role IN ('user', 'admin'))
         )",
 
-        "user_settings" => "CREATE TABLE IF NOT EXISTS user_settings (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            user_id INT UNIQUE NOT NULL,
+        "CREATE TABLE IF NOT EXISTS user_settings (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER UNIQUE NOT NULL,
             theme VARCHAR(50) DEFAULT 'light',
             language VARCHAR(10) DEFAULT 'en',
-            notifications_email BOOLEAN DEFAULT TRUE,
-            notifications_inapp BOOLEAN DEFAULT TRUE,
-            two_factor_enabled BOOLEAN DEFAULT FALSE,
+            notifications_email INTEGER DEFAULT 1,
+            notifications_inapp INTEGER DEFAULT 1,
+            two_factor_enabled INTEGER DEFAULT 0,
             api_key VARCHAR(64) UNIQUE,
             default_platform VARCHAR(50) DEFAULT 'all',
-            content_auto_approve BOOLEAN DEFAULT FALSE,
+            content_auto_approve INTEGER DEFAULT 0,
             FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
         )",
 
-        "sessions" => "CREATE TABLE IF NOT EXISTS sessions (
+        "CREATE TABLE IF NOT EXISTS sessions (
             id VARCHAR(128) PRIMARY KEY,
-            user_id INT NOT NULL,
+            user_id INTEGER NOT NULL,
             ip_address VARCHAR(45),
             user_agent TEXT,
-            expires_at TIMESTAMP NOT NULL,
+            expires_at DATETIME NOT NULL,
             FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
         )",
 
-        "user_actions" => "CREATE TABLE IF NOT EXISTS user_actions (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            user_id INT NOT NULL,
+        "CREATE TABLE IF NOT EXISTS user_actions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
             action_type VARCHAR(100) NOT NULL,
-            action_data JSON,
-            status ENUM('pending', 'processing', 'completed', 'failed') DEFAULT 'pending',
-            result_data JSON,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            completed_at TIMESTAMP NULL,
+            action_data TEXT,
+            status TEXT DEFAULT 'pending' CHECK(status IN ('pending', 'processing', 'completed', 'failed')),
+            result_data TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            completed_at DATETIME,
             FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
         )",
 
-        "platform_connections" => "CREATE TABLE IF NOT EXISTS platform_connections (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            user_id INT NOT NULL,
+        "CREATE TABLE IF NOT EXISTS platform_connections (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
             platform VARCHAR(50) NOT NULL,
             access_token TEXT,
             refresh_token TEXT,
-            token_expiry TIMESTAMP NULL,
+            token_expiry DATETIME,
             platform_user_id VARCHAR(255),
             platform_username VARCHAR(255),
-            is_active BOOLEAN DEFAULT TRUE,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            is_active INTEGER DEFAULT 1,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-            UNIQUE KEY (user_id, platform)
+            UNIQUE(user_id, platform)
         )",
 
-        "generated_posts" => "CREATE TABLE IF NOT EXISTS generated_posts (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            user_id INT NOT NULL,
+        "CREATE TABLE IF NOT EXISTS generated_posts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
             platform VARCHAR(50),
             content TEXT,
-            media_urls JSON,
+            media_urls TEXT,
             caption TEXT,
             hashtags TEXT,
             campaign_goal VARCHAR(100),
             status VARCHAR(50) DEFAULT 'draft',
-            scheduled_for TIMESTAMP NULL,
-            published_at TIMESTAMP NULL,
-            engagement_data JSON,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            scheduled_for DATETIME,
+            published_at DATETIME,
+            engagement_data TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
         )"
     ];
 
-    foreach ($tables as $sql) {
+    foreach ($statements as $sql) {
         try {
             $pdo->exec($sql);
         } catch (PDOException $e) {
@@ -187,11 +185,11 @@ class UserAuth {
             return ['success' => false, 'message' => 'Account is deactivated'];
         }
 
-        $stmt = $this->pdo->prepare("UPDATE users SET last_login = NOW() WHERE id = ?");
+        $stmt = $this->pdo->prepare("UPDATE users SET last_login = datetime('now') WHERE id = ?");
         $stmt->execute([$user['id']]);
 
         $sessionId = bin2hex(random_bytes(32));
-        $stmt = $this->pdo->prepare("INSERT INTO sessions (id, user_id, ip_address, user_agent, expires_at) VALUES (?, ?, ?, ?, DATE_ADD(NOW(), INTERVAL 7 DAY))");
+        $stmt = $this->pdo->prepare("INSERT INTO sessions (id, user_id, ip_address, user_agent, expires_at) VALUES (?, ?, ?, ?, datetime('now', '+7 days'))");
         $stmt->execute([$sessionId, $user['id'], $ip, $userAgent]);
 
         $_SESSION['user_id'] = $user['id'];
@@ -240,7 +238,7 @@ class UserAuth {
             return ['success' => false, 'message' => 'No valid fields to update'];
         }
         $params[] = $userId;
-        $sql = "UPDATE users SET " . implode(', ', $updates) . " WHERE id = ?";
+        $sql = "UPDATE users SET " . implode(', ', $updates) . ", updated_at = datetime('now') WHERE id = ?";
         $stmt = $this->pdo->prepare($sql);
         $stmt->execute($params);
         return ['success' => true];
@@ -330,11 +328,11 @@ class ActionPanel {
     public function connectPlatform($platform, $accessToken, $refreshToken = null, $expiry = null) {
         $stmt = $this->pdo->prepare("INSERT INTO platform_connections (user_id, platform, access_token, refresh_token, token_expiry) 
                                      VALUES (?, ?, ?, ?, ?) 
-                                     ON DUPLICATE KEY UPDATE 
-                                     access_token = VALUES(access_token),
-                                     refresh_token = VALUES(refresh_token),
-                                     token_expiry = VALUES(token_expiry),
-                                     updated_at = NOW()");
+                                     ON CONFLICT(user_id, platform) DO UPDATE SET
+                                     access_token = excluded.access_token,
+                                     refresh_token = excluded.refresh_token,
+                                     token_expiry = excluded.token_expiry,
+                                     updated_at = datetime('now')");
         $stmt->execute([$this->userId, $platform, $accessToken, $refreshToken, $expiry]);
 
         $this->logAction('connect_platform', ['platform' => $platform]);
@@ -373,7 +371,7 @@ class ActionPanel {
     }
 
     public function publishNow($postId) {
-        $stmt = $this->pdo->prepare("UPDATE generated_posts SET status = 'published', published_at = NOW() WHERE id = ? AND user_id = ?");
+        $stmt = $this->pdo->prepare("UPDATE generated_posts SET status = 'published', published_at = datetime('now') WHERE id = ? AND user_id = ?");
         $stmt->execute([$postId, $this->userId]);
 
         $this->logAction('publish_now', ['post_id' => $postId]);
@@ -442,7 +440,7 @@ class ActionPanel {
     }
 
     private function updateAction($actionId, $status, $resultData = null) {
-        $stmt = $this->pdo->prepare("UPDATE user_actions SET status = ?, result_data = ?, completed_at = NOW() WHERE id = ?");
+        $stmt = $this->pdo->prepare("UPDATE user_actions SET status = ?, result_data = ?, completed_at = datetime('now') WHERE id = ?");
         $stmt->execute([$status, json_encode($resultData), $actionId]);
     }
 }
