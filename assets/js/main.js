@@ -28,40 +28,6 @@ const api = {
     del: (path) => api(path, { method: 'DELETE' })
 };
 
-const state = {
-    user: JSON.parse(localStorage.getItem('janjez_user') || 'null'),
-    token: localStorage.getItem('janjez_token') || null
-};
-
-function setAuth(user, token) {
-    state.user = user;
-    state.token = token;
-    if (user) {
-        localStorage.setItem('janjez_user', JSON.stringify(user));
-        if (token) localStorage.setItem('janjez_token', token);
-    } else {
-        localStorage.removeItem('janjez_user');
-        localStorage.removeItem('janjez_token');
-    }
-    updateAuthUI();
-}
-
-function updateAuthUI() {
-    const authNav = document.getElementById('auth-nav');
-    const userMenu = document.getElementById('user-menu');
-    const usernameSpan = document.getElementById('user-username');
-    if (!authNav || !userMenu) return;
-
-    if (state.user) {
-        authNav.style.display = 'none';
-        userMenu.style.display = 'flex';
-        if (usernameSpan) usernameSpan.textContent = state.user.username || state.user.email;
-    } else {
-        authNav.style.display = 'flex';
-        userMenu.style.display = 'none';
-    }
-}
-
 async function handleSignup(e) {
     e.preventDefault();
     const form = e.target;
@@ -103,7 +69,6 @@ async function handleLogin(e) {
             password: form.password.value
         };
         const result = await api.post('/api/?action=login', data);
-        setAuth(result.user, result.session_id);
         closeModal('login-modal');
         showToast('Welcome back, ' + (result.user.username || result.user.email) + '!');
     } catch (err) {
@@ -115,10 +80,6 @@ async function handleLogin(e) {
 }
 
 async function handleGeneratePost(platform, campaignGoal) {
-    if (!state.user) {
-        openModal('login-modal');
-        return;
-    }
     const btn = document.querySelector('[data-action="generate"]');
     if (btn) {
         btn.disabled = true;
@@ -189,9 +150,6 @@ function addStyles() {
         .form-group input { width: 100%; padding: 10px 14px; border: 1.5px solid #e5e5e5; border-radius: 10px; font-size: 15px; outline: none; transition: border 0.2s; }
         .form-group input:focus { border-color: #6c4bff; }
         .modal-close { position: absolute; top: 16px; right: 16px; background: none; border: none; font-size: 20px; cursor: pointer; color: #999; }
-        #user-menu { align-items: center; gap: 12px; display: none; }
-        .btn-logout { background: #f0edec; border: none; padding: 8px 16px; border-radius: 10px; cursor: pointer; font-weight: 600; font-size: 13px; }
-        .btn-logout:hover { background: #e5e0de; }
     `;
     document.head.appendChild(style);
 }
@@ -271,7 +229,7 @@ function wireUI() {
         quoteBtn.style.cursor = 'pointer';
         quoteBtn.addEventListener('click', (e) => {
             e.preventDefault();
-            handleGeneratePost('all', 'showcase');
+            openModal('login-modal');
         });
     }
 
@@ -281,21 +239,7 @@ function wireUI() {
         faqCtaBtn.removeAttribute('href');
         faqCtaBtn.addEventListener('click', (e) => {
             e.preventDefault();
-            handleGeneratePost('all', 'showcase');
-        });
-    }
-
-    const logoutBtn = document.getElementById('logout-btn');
-    if (logoutBtn) {
-        logoutBtn.addEventListener('click', async (e) => {
-            e.preventDefault();
-            try {
-                await api.post('/api/?action=logout');
-            } catch (err) {
-                console.error('Logout error:', err);
-            }
-            setAuth(null);
-            showToast('Logged out successfully');
+            openModal('login-modal');
         });
     }
 }
@@ -303,6 +247,5 @@ function wireUI() {
 document.addEventListener('DOMContentLoaded', () => {
     addStyles();
     createModals();
-    updateAuthUI();
     wireUI();
 });
